@@ -4,3 +4,5 @@ sounddevice>=0.5
 numpy>=2.0
 qrcode>=8.0
 cryptography>=43.0
+pillow>=10.0
+pystray>=0.19

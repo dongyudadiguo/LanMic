@@ -18,10 +18,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from lanmic.net import lan_ips
+from lanmic.paths import user_data_dir
 
 
 def cert_dir() -> Path:
-    return Path.home() / ".lanmic"
+    return user_data_dir()
 
 
 def cert_paths() -> tuple[Path, Path]:

@@ -15,7 +15,7 @@ class SmokeTests(unittest.TestCase):
     def test_python_files_parse(self):
         files = list((ROOT / "lanmic").glob("*.py"))
         files += list((ROOT / "tests").glob("*.py"))
-        self.assertGreaterEqual(len(files), 6)
+        self.assertGreaterEqual(len(files), 8)
         for path in files:
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
@@ -28,10 +28,25 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("/api/offer", phone)
         self.assertIn("Win+H", host)
         self.assertIn("/api/status", host)
+        self.assertIn("/api/shutdown", host)
+        self.assertIn("退出 LanMic", host)
 
     def test_license_is_mit(self):
         text = (ROOT / "LICENSE").read_text(encoding="utf-8")
         self.assertIn("MIT License", text)
+
+    def test_release_workflow_on_tags(self):
+        wf = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn('tags:', wf)
+        self.assertIn('"v*"', wf)
+        self.assertIn("PyInstaller", wf)
+        self.assertIn("action-gh-release", wf)
+        self.assertIn("console=False", (ROOT / "packaging" / "lanmic.spec").read_text(encoding="utf-8"))
+
+    def test_paths_module(self):
+        from lanmic.paths import is_frozen, web_dir
+        self.assertFalse(is_frozen())
+        self.assertTrue((web_dir() / "phone.html").is_file())
 
 
 if __name__ == "__main__":

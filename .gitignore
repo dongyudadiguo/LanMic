@@ -16,3 +16,7 @@ data/
 .DS_Store
 Thumbs.db
 *.log
+
+# packaging output
+*.spec.bak
+packaging/__pycache__/

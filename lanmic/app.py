@@ -27,31 +27,29 @@ from lanmic.audio import (
 )
 from lanmic.certs import ensure_certificate
 from lanmic.net import lan_ips, phone_urls
+from lanmic.paths import web_dir
+from lanmic.runtime import (
+    acquire_single_instance,
+    has_console,
+    message_box,
+    setup_logging,
+    start_tray,
+)
 from lanmic.webrtc import PhoneSession
 
 log = logging.getLogger("lanmic")
 
-WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+WEB_DIR = web_dir()
 HOST_PAGE = WEB_DIR / "host.html"
 PHONE_PAGE = WEB_DIR / "phone.html"
 
 
-def _qr_ascii(url: str) -> str:
-    try:
-        import qrcode
-    except ImportError:
-        return ""
-    qr = qrcode.QRCode(border=1)
-    qr.add_data(url)
-    qr.make(fit=True)
-    return qr.get_matrix()
-
-
 def _qr_data_uri(url: str) -> str:
     try:
-        import qrcode
-        import io
         import base64
+        import io
+
+        import qrcode
     except ImportError:
         return ""
     img = qrcode.make(url, border=2)
@@ -153,6 +151,10 @@ def build_app(hub: Hub) -> web.Application:
         await hub.hangup()
         return web.json_response({"ok": True})
 
+    async def shutdown(_request: web.Request) -> web.Response:
+        asyncio.get_running_loop().call_later(0.15, _request.app["stop"].set)
+        return web.json_response({"ok": True})
+
     async def devices(_request: web.Request) -> web.Response:
         outs = [
             {
@@ -173,6 +175,7 @@ def build_app(hub: Hub) -> web.Application:
     app.router.add_get("/api/devices", devices)
     app.router.add_post("/api/offer", offer)
     app.router.add_post("/api/hangup", hangup)
+    app.router.add_post("/api/shutdown", shutdown)
     app.router.add_static("/static", WEB_DIR, show_index=False)
     return app
 
@@ -209,6 +212,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="启动时不要打开电脑上的控制台页",
     )
+    p.add_argument(
+        "--no-tray",
+        action="store_true",
+        help="不要系统托盘（无控制台时仍可从控制台页点退出）",
+    )
     p.add_argument("--version", action="version", version=f"lanmic {__version__}")
     return p.parse_args(argv)
 
@@ -226,13 +234,15 @@ def pick_device(args: argparse.Namespace) -> Device | None:
     if found is None:
         log.warning(
             "没有检测到 VB-CABLE / VoiceMeeter。先用喇叭试听；"
-            "要给 Win+H 用，请安装虚拟声卡后再启动（去掉 --speaker）。"
+            "要给 Win+H 用，请安装虚拟声卡后再启动。"
         )
         return None
     return found
 
 
 def print_banner(hub: Hub) -> None:
+    if not has_console():
+        return
     urls = hub.urls()
     print()
     print(f"  LanMic v{__version__}   口述写提示词用的局域网麦克风")
@@ -245,7 +255,6 @@ def print_banner(hub: Hub) -> None:
         for u in urls:
             print(f"    {u}")
         print()
-        # ASCII QR of the first / most likely URL
         try:
             import qrcode
 
@@ -261,70 +270,109 @@ def print_banner(hub: Hub) -> None:
     print("  电脑控制台: "
           f"{hub.scheme}://127.0.0.1:{hub.port}/host")
     print("  第一次手机会提示证书不受信任：点「高级 → 继续前往」。")
-    print("  证书目录   :", Path.home() / ".lanmic")
     print()
 
 
+def fail(message: str, code: int = 1) -> None:
+    log.error(message)
+    message_box("LanMic 无法启动", message, error=True)
+    raise SystemExit(code)
+
+
 def main(argv: list[str] | None = None) -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    setup_logging()
     args = parse_args(argv)
+
+    if not acquire_single_instance():
+        host_url = f"https://127.0.0.1:{args.port}/host"
+        try:
+            webbrowser.open(host_url)
+        except Exception:
+            pass
+        message_box("LanMic 已在运行", "已打开控制台页。若要退出，点托盘图标或控制台里的「退出」。")
+        return
+
     if os.name != "nt":
         log.warning("当前按 Windows 场景维护；其他系统仅能喇叭试听。")
 
     try:
         device = pick_device(args)
     except SystemExit as exc:
-        print(exc, file=sys.stderr)
-        raise
+        fail(str(exc) or "选不到播放设备")
 
     sink = AudioSink(device)
     try:
         sink.start()
     except Exception as exc:
-        raise SystemExit(f"打不开播放设备：{exc}") from exc
+        fail(f"打不开播放设备：{exc}")
 
     scheme = "http" if args.http else "https"
     ssl_ctx = None
     if not args.http:
-        cert, key = ensure_certificate(force=args.regen_cert)
-        ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ssl_ctx.load_cert_chain(str(cert), str(key))
+        try:
+            cert, key = ensure_certificate(force=args.regen_cert)
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.load_cert_chain(str(cert), str(key))
+        except Exception as exc:
+            sink.stop()
+            fail(f"证书失败：{exc}")
 
     hub = Hub(sink, port=args.port, scheme=scheme)
     app = build_app(hub)
     print_banner(hub)
 
+    host_url = f"{scheme}://127.0.0.1:{args.port}/host"
     if not args.no_browser:
-        host_url = f"{scheme}://127.0.0.1:{args.port}/host"
         try:
             webbrowser.open(host_url)
         except Exception:
-            pass
+            log.exception("failed to open browser")
 
     async def _run() -> None:
+        stop = asyncio.Event()
+        app["stop"] = stop
+        loop = asyncio.get_running_loop()
+
+        tray = None
+        if not args.no_tray:
+            tray = start_tray(host_url, on_quit=lambda: loop.call_soon_threadsafe(stop.set))
+
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host=args.host, port=args.port, ssl_context=ssl_ctx)
         try:
             await site.start()
         except OSError as exc:
+            if tray is not None:
+                try:
+                    tray.stop()
+                except Exception:
+                    pass
             raise SystemExit(f"端口 {args.port} 无法监听：{exc}") from exc
+
+        log.info("listening on %s://%s:%s", scheme, args.host, args.port)
         try:
-            while True:
-                await asyncio.sleep(3600)
-        except asyncio.CancelledError:
-            pass
+            await stop.wait()
         finally:
+            if tray is not None:
+                try:
+                    tray.stop()
+                except Exception:
+                    pass
             await hub.hangup()
             await runner.cleanup()
 
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:
-        print("\n已退出")
+        pass
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            fail(str(exc) if exc.code is not None else "启动失败")
+        raise
+    except Exception as exc:
+        log.exception("fatal")
+        fail(f"运行出错：{exc}")
     finally:
         sink.stop()
 

@@ -64,6 +64,13 @@
     </section>
   </div>
   <section class="card" style="margin-top:18px">
+    <h2>退出</h2>
+    <p class="lead" style="margin:0 0 12px;font-size:14px">
+      关掉这个网页<b>不会</b>关掉 LanMic。请点右下角托盘绿点，或按下面按钮。
+    </p>
+    <button class="copy" id="quit" type="button">退出 LanMic</button>
+  </section>
+  <section class="card" style="margin-top:18px">
     <h2>口述写提示词（推荐流程）</h2>
     <ol>
       <li>手机点「开始当麦克风」，对着手机说话，看上面电平条是否跳动。</li>
@@ -130,6 +137,16 @@
         setTimeout(() => $("copy").textContent = "复制链接", 1500);
       } catch (e) {
         prompt("复制这个链接", lastUrl);
+      }
+    });
+
+    $("quit").addEventListener("click", async () => {
+      if (!confirm("退出后手机麦克风会断开。确定？")) return;
+      try {
+        await fetch("/api/shutdown", { method: "POST" });
+        document.body.innerHTML = "<p style='padding:48px;font:16px sans-serif'>LanMic 已退出，可以关掉这个标签页。</p>";
+      } catch (e) {
+        alert("退出请求失败，请改用右下角托盘图标。");
       }
     });
 
