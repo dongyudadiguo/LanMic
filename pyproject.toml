@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lanmic"
-version = "0.2.0"
+version = "0.2.1"
 description = "用手机浏览器当 Windows 麦克风（局域网 WebRTC），方便口述写提示词。"
 readme = "README.md"
 license = { text = "MIT" }

@@ -3,7 +3,7 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.2.1] - 2026-03-25
 
 ### Changed
 
@@ -39,5 +39,6 @@
 - 面向「口述写提示词」场景的使用说明（Win+H 语音输入）
 - MIT 开源许可
 
+[0.2.1]: https://github.com/dongyudadiguo/LanMic/releases/tag/v0.2.1
 [0.2.0]: https://github.com/dongyudadiguo/LanMic/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dongyudadiguo/LanMic/releases/tag/v0.1.0

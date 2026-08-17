@@ -7,7 +7,7 @@
 > 仅 Windows。手机不装 App。音频只在局域网里走，不经过云。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![tag](https://img.shields.io/badge/tag-v0.2.0-0f6.svg)](CHANGELOG.md)
+[![tag](https://img.shields.io/badge/tag-v0.2.1-0f6.svg)](CHANGELOG.md)
 
 ---
 
@@ -15,7 +15,7 @@
 
 不需要预装 Python。
 
-1. 打开 [Releases](https://github.com/dongyudadiguo/LanMic/releases)，下载 `LanMic-v0.2.0-windows-x64.zip`。
+1. 打开 [Releases](https://github.com/dongyudadiguo/LanMic/releases)，下载 `LanMic-v0.2.1-windows-x64.zip`。
 2. 解压整个文件夹（不要只拷贝 exe）。
 3. 双击 `LanMic.exe`。  
    **没有黑框**。浏览器会打开控制台页，右下角出现托盘绿点。
@@ -86,7 +86,7 @@ python -m lanmic --speaker
 scripts\build.bat
 ```
 
-产物在 `dist\LanMic-0.2.0-windows-x64.zip`。
+产物在 `dist\LanMic-0.2.1-windows-x64.zip`。
 
 ---
 
@@ -170,13 +170,13 @@ LanMic/
 
 MIT。见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-当前发布：**v0.2.0**。维护者：
+当前发布：**v0.2.1**。维护者：
 
 ```powershell
 # 改版本号与 CHANGELOG 后
 git add -A
-git commit -m "Release v0.2.0"
-git tag -a v0.2.0 -m "v0.2.0"
+git commit -m "Release v0.2.1"
+git tag -a v0.2.1 -m "v0.2.1"
 git push origin main --tags
 ```
 

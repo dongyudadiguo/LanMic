@@ -36,8 +36,8 @@ scripts\build.bat
 ```powershell
 # 先改 lanmic/__init__.py 与 pyproject.toml 的 version，并更新 CHANGELOG
 git add -A
-git commit -m "Release v0.2.0"
-git tag -a v0.2.0 -m "v0.2.0"
+git commit -m "Release v0.2.1"
+git tag -a v0.2.1 -m "v0.2.1"
 git push origin main --tags
 ```
 
