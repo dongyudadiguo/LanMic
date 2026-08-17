@@ -5,9 +5,20 @@ LanMic — 用手机当 Windows 麦克风（口述写提示词）
 2. 双击 LanMic.exe（没有黑框）。浏览器会打开控制台页，右下角出现托盘绿点。
 3. 手机连同一 Wi-Fi，用 Chrome / Edge 扫控制台里的二维码。
 4. 第一次证书不受信任：点「高级 → 继续前往」，再允许麦克风。
-5. 要给 Win+H 用，请先安装免费虚拟声卡：
-   https://vb-audio.com/Cable/
-   然后在 Windows 声音输入里选「CABLE Output」。
+5. 要给 Win+H 用，请先装一只虚拟调音台（推荐 Wave Link，好装、界面新）：
+
+   管理员 PowerShell：
+     winget install --id Elgato.WaveLink --source winget
+
+   打开 Wave Link 一次，再重启 LanMic。
+   Windows 声音 → 输入，选「Wave Link」或「Wave Link Stream」。
+
+   备选（同一家 VB-Audio，也是 winget）：
+     winget install --id VB-Audio.Voicemeeter --source winget
+   输入选 VoiceMeeter Output。
+
+   不推荐再下 VB-CABLE 的 zip（官网经常超时，也没有正规镜像）。
+
 6. 退出：右下角托盘绿点 → 退出，或控制台页上的「退出 LanMic」。
    只关网页不会退出程序。
 

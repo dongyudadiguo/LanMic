@@ -1,12 +1,16 @@
 """Play decoded WebRTC PCM into a Windows playback device.
 
 Virtual-cable design (recommended):
-    Python plays to "CABLE Input"  ->  Windows exposes "CABLE Output"
-    as a recording device that Win+H / any app can select.
+    Python plays into a virtual mixer's playback device, and Windows
+    exposes the matching recording device to Win+H / any app.
+
+    Preferred: Elgato Wave Link (modern, winget-installable)
+        play to "Wave Link Input"  ->  pick "Wave Link Output" / Stream
+    Fallbacks: VoiceMeeter, VB-CABLE
 
 Speaker fallback (`--speaker`):
     Play to the default output so you can verify the phone path
-    before installing VB-CABLE.
+    before installing a virtual mixer.
 """
 
 from __future__ import annotations
@@ -30,14 +34,20 @@ def _norm(name: str) -> str:
 
 
 # Substrings matched against WASAPI playback (output) device names.
+# Matched against WASAPI playback (output) device names.
+# Order = preference. Wave Link first: modern, still maintained, winget.
 VIRTUAL_OUTPUT_HINTS = (
-    "cable input",          # VB-Audio Virtual Cable
-    "vb-audio",
+    "wave link input",      # Elgato Wave Link  (play here)
+    "wave link stream",     # some versions expose Stream as render
+    "elgato wave",
+    "wave link",
     "voicemeeter input",    # VoiceMeeter
     "voicemeeter aux input",
     "voicemeeter vaio",
+    "cable input",          # VB-Audio Virtual Cable
     "cable-a input",
     "cable-b input",
+    "vb-audio",
 )
 
 
@@ -127,6 +137,8 @@ def recording_hint(output: Device | None) -> str:
     if output is None:
         return "当前走喇叭试听，Win+H 不会用到这部手机。"
     n = _norm(output.name)
+    if "wave link" in n or "elgato wave" in n:
+        return "在 Win+H / 声音输入里选择「Wave Link」或「Wave Link Stream」（不要选手机本身）。"
     if "cable input" in n:
         return "在 Win+H / 录音设置里选择「CABLE Output」。"
     if "voicemeeter input" in n or "voicemeeter vaio" in n:

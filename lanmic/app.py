@@ -233,8 +233,8 @@ def pick_device(args: argparse.Namespace) -> Device | None:
     found = find_virtual_output()
     if found is None:
         log.warning(
-            "没有检测到 VB-CABLE / VoiceMeeter。先用喇叭试听；"
-            "要给 Win+H 用，请安装虚拟声卡后再启动。"
+            "没有检测到 Wave Link / VoiceMeeter / CABLE。先用喇叭试听；"
+            "要给 Win+H 用，请安装 Elgato Wave Link（winget install Elgato.WaveLink）后再启动。"
         )
         return None
     return found

@@ -73,7 +73,7 @@ jobs:
 
             - 无黑框，托盘绿点退出；控制台页也可点「退出 LanMic」
             - 手机用 Chrome / Edge 扫码，同一 Wi-Fi
-            - 口述写提示词：安装 [VB-CABLE](https://vb-audio.com/Cable/) 后，系统输入选 `CABLE Output`，按 Win+H
+            - 口述写提示词：安装 Wave Link（`winget install Elgato.WaveLink`）后，系统输入选 `Wave Link`，按 Win+H
             - Windows SmartScreen 可能提示未知发布者：更多信息 → 仍要运行
 
             源码版仍可用 `python -m lanmic`。

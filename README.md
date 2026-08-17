@@ -21,10 +21,23 @@
    **没有黑框**。浏览器会打开控制台页，右下角出现托盘绿点。
 4. 手机连同一 Wi-Fi，用 Chrome / Edge 扫码。
 5. 证书不受信任：点 **高级 → 继续前往**，再允许麦克风。
-6. 要给 Win+H 用：安装免费的 [VB-Audio Virtual Cable](https://vb-audio.com/Cable/)，系统输入选 `CABLE Output`，光标放到文本框按 **Win+H**。
+6. 要给 Win+H 用：安装 [Elgato Wave Link](https://www.elgato.com/us/en/s/downloads)（`winget install Elgato.WaveLink`），打开一次后，系统输入选 `Wave Link` / `Wave Link Stream`，光标放到文本框按 **Win+H**。
 7. 退出：托盘绿点 → 退出，或控制台页「退出 LanMic」。只关网页不会退出。
 
 Windows SmartScreen 可能提示未知发布者：更多信息 → 仍要运行。防火墙请允许专用网络。
+
+### 虚拟调音台（给 Win+H 用）
+
+推荐 **Elgato Wave Link**：界面新，可用 winget 安装，不必去下 VB-CABLE 的 zip。
+
+```powershell
+winget install --id Elgato.WaveLink --source winget --accept-package-agreements --accept-source-agreements
+```
+
+打开 Wave Link 一次，再启动 LanMic。Windows 声音 → 输入选 `Wave Link` 或 `Wave Link Stream`。
+
+备选：`winget install --id VB-Audio.Voicemeeter`（输入选 VoiceMeeter Output）。
+
 
 `git push` 一个 `v*` tag 后，GitHub Actions 会自动打这个 zip 并挂到 Release 上。
 
@@ -91,7 +104,7 @@ scripts\build.bat
 
 | 命令 | 作用 |
 |---|---|
-| `python -m lanmic` | 默认 HTTPS :8443，自动找 VB-CABLE |
+| `python -m lanmic` | 默认 HTTPS :8443，自动找 Wave Link / VoiceMeeter / CABLE |
 | `python -m lanmic --speaker` | 喇叭试听 |
 | `python -m lanmic --device "VoiceMeeter"` | 按名称选播放设备 |
 | `python -m lanmic --port 9443` | 换端口 |
@@ -113,9 +126,9 @@ scripts\build.bat
 电脑（打包后的 LanMic.exe 或 python -m lanmic）
   解码成 48 kHz / 16-bit / mono PCM
         ▼
-PortAudio / WASAPI → "CABLE Input"
+PortAudio / WASAPI → Wave Link Input（或 VoiceMeeter / CABLE Input）
         ▼
-Windows 录音设备 "CABLE Output"
+Windows 录音设备 Wave Link / Wave Link Stream
   Win+H / Zoom / 任意软件选用
 ```
 
@@ -145,7 +158,7 @@ LanMic/
 | 双击没反应 | 看 `%USERPROFILE%\.lanmic\lanmic.log`；是否已有一个实例在跑 |
 | 手机打不开页面 | 不在同一网段 / 访客隔离 → 电脑开热点 |
 | 证书报错 | 「继续前往」。换网络后 `--regen-cert` 或删掉 `%USERPROFILE%\.lanmic\cert.pem` |
-| 有声音但 Win+H 不认 | 没装 / 没选 `CABLE Output` |
+| 有声音但 Win+H 不认 | 没装 / 没打开 Wave Link；输入没选 `Wave Link` |
 | 电平不动 | 手机权限拒绝、静音、或切到了别的标签 |
 | 说两句就断 | 锁屏或切走浏览器；把手机页留在前台 |
 | SmartScreen | 更多信息 → 仍要运行（当前未做代码签名） |

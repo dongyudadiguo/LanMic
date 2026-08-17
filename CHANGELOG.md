@@ -3,6 +3,13 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Changed
+
+- 默认虚拟设备改为优先检测 **Elgato Wave Link**（`winget install Elgato.WaveLink`）
+- Win+H 说明改为选 `Wave Link` / `Wave Link Stream`；VB-CABLE 降为备选（官网 zip 经常超时且无镜像）
+
 ## [0.2.0] - 2026-03-25
 
 ### Added

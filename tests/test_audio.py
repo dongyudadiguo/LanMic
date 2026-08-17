@@ -29,6 +29,14 @@ class AudioHelperTests(unittest.TestCase):
     def test_recording_hint_speaker(self):
         self.assertIn("喇叭", recording_hint(None))
 
+    def test_hints_cover_wavelink(self):
+        name = _norm("Wave Link Input (Elgato Wave:)")
+        self.assertTrue(any(h in name for h in VIRTUAL_OUTPUT_HINTS))
+
+    def test_recording_hint_for_wavelink(self):
+        text = recording_hint(self._dev("Wave Link Input"))
+        self.assertIn("Wave Link", text)
+
 
 if __name__ == "__main__":
     unittest.main()
