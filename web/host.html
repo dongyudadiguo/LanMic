@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LanMic · 电脑控制台</title>
+  <style>
+    :root {
+      --bg: #f3efe6; --ink: #1b1b1b; --muted: #5c574e; --card: #fffcf6;
+      --line: #e2dac8; --ok: #2c7a3f; --warn: #8a6d12; --bad: #a33b2b;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif; }
+    body { max-width: 920px; margin: 0 auto; padding: 36px 22px 64px; }
+    h1 { font-weight: 650; letter-spacing: .01em; margin: 0 0 6px; font-size: 28px; }
+    .lead { color: var(--muted); margin: 0 0 28px; line-height: 1.55; }
+    .grid { display: grid; grid-template-columns: 280px 1fr; gap: 18px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 16px; }
+    h2 { font-size: 15px; margin: 0 0 12px; font-weight: 650; }
+    #qr { width: 100%; height: auto; image-rendering: pixelated; background: #fff; border-radius: 8px; }
+    .url { font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; }
+    .url + .url { margin-top: 6px; }
+    button.copy { margin-top: 10px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+    .kv { display: grid; grid-template-columns: 96px 1fr; gap: 8px 10px; font-size: 14px; }
+    .k { color: var(--muted); }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #999; }
+    .dot.live { background: var(--ok); }
+    .dot.wait { background: #c9a227; }
+    .dot.err { background: var(--bad); }
+    .meter { height: 8px; background: #ece6d8; border-radius: 99px; overflow: hidden; margin: 14px 0 6px; }
+    .meter > i { display: block; height: 100%; width: 0; background: var(--ok); }
+    ol { margin: 8px 0 0; padding-left: 1.2em; color: var(--muted); line-height: 1.65; }
+    .warn { color: var(--warn); }
+    .ok { color: var(--ok); }
+    code { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; }
+  </style>
+</head>
+<body>
+  <h1>LanMic</h1>
+  <p class="lead">手机扫码或打开链接，允许麦克风，即可在这台 Windows 上口述写提示词（Win+H）。</p>
+  <div class="grid">
+    <section class="card">
+      <h2>手机扫这个</h2>
+      <img id="qr" alt="连接二维码" />
+      <div id="urls"></div>
+      <button class="copy" id="copy" type="button">复制链接</button>
+      <p class="lead" style="margin:12px 0 0;font-size:13px">
+        第一次会提示证书不受信任，选「高级 → 继续前往」。必须和电脑同一 Wi-Fi，或电脑开热点。
+      </p>
+    </section>
+    <section class="card">
+      <h2>状态</h2>
+      <div class="kv">
+        <div class="k">连接</div><div id="conn"><span class="dot"></span>等待手机</div>
+        <div class="k">输出</div><div id="dev">—</div>
+        <div class="k">Win+H</div><div id="hint">—</div>
+        <div class="k">缓冲</div><div id="buf">—</div>
+        <div class="k">版本</div><div id="ver">—</div>
+      </div>
+      <div class="meter"><i id="bar"></i></div>
+      <p id="cable" class="lead" style="margin:8px 0 0;font-size:13px"></p>
+    </section>
+  </div>
+  <section class="card" style="margin-top:18px">
+    <h2>口述写提示词（推荐流程）</h2>
+    <ol>
+      <li>手机点「开始当麦克风」，对着手机说话，看上面电平条是否跳动。</li>
+      <li>Windows 设置 → 系统 → 声音 → 输入，选 <code>CABLE Output</code>（或 VoiceMeeter 对应输入）。</li>
+      <li>打开要写提示词的地方（浏览器对话框、编辑器、笔记）。</li>
+      <li>按 <code>Win + H</code> 打开语音输入，开始口述。停顿一下会自动上字。</li>
+      <li>说完再改一改标点。长提示词可以分段说：「下一段」「换行」。</li>
+    </ol>
+  </section>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let lastUrl = "";
+
+    async function refreshQr() {
+      const r = await fetch("/api/qr");
+      const data = await r.json();
+      lastUrl = data.url;
+      $("qr").src = data.png;
+      const box = $("urls");
+      box.innerHTML = "";
+      (data.all || [data.url]).forEach((u) => {
+        const d = document.createElement("div");
+        d.className = "url";
+        d.textContent = u;
+        box.appendChild(d);
+      });
+    }
+
+    async function refreshStatus() {
+      const r = await fetch("/api/status");
+      const s = await r.json();
+      $("dev").textContent = s.device || "—";
+      $("hint").textContent = s.recording_hint || "—";
+      $("ver").textContent = s.version || "—";
+      const audio = s.audio || {};
+      $("buf").textContent = (audio.buffered_ms ?? 0) + " ms · 丢底 " + (audio.underruns ?? 0);
+      $("bar").style.width = Math.min(100, Math.round((audio.level || 0) * 140)) + "%";
+      const sess = s.session;
+      const conn = $("conn");
+      if (sess && (sess.connected || sess.state === "connected")) {
+        conn.innerHTML = '<span class="dot live"></span>手机已接通';
+      } else if (sess && (sess.state === "connecting" || sess.state === "new")) {
+        conn.innerHTML = '<span class="dot wait"></span>正在接通';
+      } else if (sess && (sess.state === "failed")) {
+        conn.innerHTML = '<span class="dot err"></span>失败，让手机重试';
+      } else {
+        conn.innerHTML = '<span class="dot"></span>等待手机';
+      }
+      const cable = $("cable");
+      if (s.virtual_cable) {
+        cable.className = "ok";
+        cable.textContent = "已检测到虚拟声卡。把系统默认输入设成 CABLE Output（或对应设备）后，Win+H 就会用手机的声音。";
+      } else {
+        cable.className = "warn";
+        cable.textContent = "还没检测到 VB-CABLE / VoiceMeeter。现在多半只是喇叭试听。安装 https://vb-audio.com/Cable/ 后重启 LanMic。";
+      }
+    }
+
+    $("copy").addEventListener("click", async () => {
+      if (!lastUrl) return;
+      try {
+        await navigator.clipboard.writeText(lastUrl);
+        $("copy").textContent = "已复制";
+        setTimeout(() => $("copy").textContent = "复制链接", 1500);
+      } catch (e) {
+        prompt("复制这个链接", lastUrl);
+      }
+    });
+
+    refreshQr().catch(console.error);
+    refreshStatus().catch(console.error);
+    setInterval(() => refreshStatus().catch(() => {}), 800);
+  </script>
+</body>
+</html>

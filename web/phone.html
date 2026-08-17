@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#111111" />
+  <title>LanMic · 手机麦克风</title>
+  <style>
+    :root {
+      --bg: #111111;
+      --fg: #f4f1ea;
+      --muted: #b4b0a6;
+      --card: #1c1c1c;
+      --line: #2a2a2a;
+      --ok: #8fdb7a;
+      --warn: #e2c36b;
+      --bad: #ef7b6a;
+      --accent: #f4f1ea;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+      font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif; }
+    body { min-height: 100dvh; display: flex; flex-direction: column; }
+    header { padding: 28px 24px 8px; }
+    h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; letter-spacing: .02em; }
+    .sub { color: var(--muted); font-size: 14px; line-height: 1.5; }
+    main { flex: 1; padding: 12px 20px 28px; display: flex; flex-direction: column; gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+    .state { font-size: 28px; font-weight: 600; margin: 0 0 8px; }
+    .state.idle { color: var(--muted); }
+    .state.live { color: var(--ok); }
+    .state.wait { color: var(--warn); }
+    .state.err { color: var(--bad); }
+    .meter { height: 10px; background: #2b2b2b; border-radius: 99px; overflow: hidden; }
+    .meter > i { display: block; height: 100%; width: 0; background: var(--ok); border-radius: 99px; }
+    .row { display: flex; gap: 10px; }
+    button {
+      flex: 1; border: 0; border-radius: 999px; padding: 16px 18px;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+    }
+    #go { background: var(--accent); color: #111; }
+    #go:disabled { opacity: .45; }
+    #mute { background: #2a2a2a; color: var(--fg); display: none; }
+    #mute.on { background: #5a2a24; }
+    ol { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    footer { padding: 0 24px 24px; color: #777; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LanMic</h1>
+    <div class="sub">把这部手机当成电脑的麦克风，用来口述写提示词。</div>
+  </header>
+  <main>
+    <section class="card">
+      <p id="state" class="state idle">未连接</p>
+      <div class="meter" aria-hidden="true"><i id="bar"></i></div>
+      <p class="hint" id="detail">点下面开始。请用 Chrome 或 Edge，并保持这个标签页在前台。</p>
+    </section>
+    <div class="row">
+      <button id="go" type="button">开始当麦克风</button>
+      <button id="mute" type="button">静音</button>
+    </div>
+    <section class="card">
+      <ol>
+        <li>允许麦克风权限。</li>
+        <li>若提示证书不受信任：高级 → 继续前往（只在你家电脑上）。</li>
+        <li>电脑按 Win+H，输入法选这只虚拟麦（一般是 CABLE Output）。</li>
+        <li>口述时别锁屏、别切走这个页面。</li>
+      </ol>
+    </section>
+  </main>
+  <footer>局域网传输 · 不经过云 · 开源 LanMic</footer>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const stateEl = $("state");
+    const detailEl = $("detail");
+    const bar = $("bar");
+    const go = $("go");
+    const muteBtn = $("mute");
+
+    let pc = null;
+    let stream = null;
+    let analyser = null;
+    let audioCtx = null;
+    let raf = 0;
+    let muted = false;
+    let wakeLock = null;
+
+    function setState(kind, title, detail) {
+      stateEl.className = "state " + kind;
+      stateEl.textContent = title;
+      if (detail) detailEl.textContent = detail;
+    }
+
+    async function keepScreen(on) {
+      try {
+        if (on && navigator.wakeLock) {
+          wakeLock = await navigator.wakeLock.request("screen");
+          wakeLock.addEventListener("release", () => {});
+        } else if (wakeLock) {
+          await wakeLock.release();
+          wakeLock = null;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    function tickMeter() {
+      if (!analyser) { bar.style.width = "0%"; return; }
+      const data = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(data);
+      let peak = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = Math.abs(data[i] - 128) / 128;
+        if (v > peak) peak = v;
+      }
+      bar.style.width = Math.min(100, Math.round(peak * 160)) + "%";
+      raf = requestAnimationFrame(tickMeter);
+    }
+
+    async function connect() {
+      go.disabled = true;
+      setState("wait", "请求麦克风…", "请在弹窗里允许。");
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1,
+            sampleRate: 48000,
+          },
+          video: false,
+        });
+      } catch (err) {
+        go.disabled = false;
+        setState("err", "没有麦克风权限", String(err));
+        return;
+      }
+
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      tickMeter();
+
+      pc = new RTCPeerConnection({
+        iceServers: [],
+        bundlePolicy: "max-bundle",
+      });
+      for (const track of stream.getAudioTracks()) {
+        pc.addTrack(track, stream);
+      }
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        if (s === "connected") {
+          setState("live", "已接通", "对着手机说话。电脑 Win+H 即可口述。保持这个页面在前台。");
+          muteBtn.style.display = "block";
+          go.textContent = "断开";
+          go.disabled = false;
+          keepScreen(true);
+        } else if (s === "connecting" || s === "new") {
+          setState("wait", "正在接通…", "和电脑协商中。");
+        } else if (s === "disconnected") {
+          setState("wait", "连接不稳", "请靠近路由器，或检查电脑端是否还在运行。");
+        } else if (s === "failed" || s === "closed") {
+          setState("err", "已断开", "点按钮可重连。");
+          cleanup(false);
+        }
+      };
+
+      setState("wait", "正在接通…", "和电脑协商中。");
+      const offer = await pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
+      await pc.setLocalDescription(offer);
+      await waitIceComplete(pc);
+
+      let answer;
+      try {
+        const res = await fetch("/api/offer", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sdp: pc.localDescription.sdp, type: "offer" }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        answer = await res.json();
+      } catch (err) {
+        setState("err", "电脑没响应", String(err) + " · 确认电脑端 LanMic 还开着，且手机连的是同一 Wi-Fi。");
+        cleanup(true);
+        return;
+      }
+      await pc.setRemoteDescription({ type: "answer", sdp: answer.sdp });
+    }
+
+    function waitIceComplete(peer) {
+      if (peer.iceGatheringState === "complete") return Promise.resolve();
+      return new Promise((resolve) => {
+        const t = setTimeout(resolve, 2500);
+        peer.onicegatheringstatechange = () => {
+          if (peer.iceGatheringState === "complete") {
+            clearTimeout(t);
+            resolve();
+          }
+        };
+      });
+    }
+
+    function cleanup(enableButton) {
+      cancelAnimationFrame(raf);
+      keepScreen(false);
+      if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
+      analyser = null;
+      bar.style.width = "0%";
+      muteBtn.style.display = "none";
+      muted = false;
+      muteBtn.classList.remove("on");
+      muteBtn.textContent = "静音";
+      go.textContent = "开始当麦克风";
+      go.disabled = false;
+    }
+
+    go.addEventListener("click", () => {
+      if (pc) {
+        fetch("/api/hangup", { method: "POST" }).catch(() => {});
+        cleanup(true);
+        go.textContent = "开始当麦克风";
+        setState("idle", "未连接", "已断开。");
+        return;
+      }
+      connect();
+    });
+
+    muteBtn.addEventListener("click", () => {
+      muted = !muted;
+      if (stream) stream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
+      muteBtn.classList.toggle("on", muted);
+      muteBtn.textContent = muted ? "已静音" : "静音";
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") keepScreen(!!pc);
+    });
+  </script>
+</body>
+</html>
